@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador de Urgencias</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<aside class="side">
+  <div class="logo"><span class="cruz">+</span><div><b>URGENCIAS</b><small>Simulador de catástrofes</small></div></div>
+  <nav class="nav">
+    <button data-v="sim" class="act"><i>🏥</i>Simulación</button>
+    <button data-v="res"><i>📊</i>Resultados<span id="nRuns" class="badge" hidden>0</span></button>
+    <button data-v="opt"><i>⚙</i>Optimización</button>
+    <button data-v="rec"><i>💡</i>Recomendaciones</button>
+  </nav>
+  <div class="pie">
+    <p>Triage (Res. 5596/2015)</p>
+    <ul class="niv">
+      <li><i style="background:#e53935"></i>I Rojo · Atención inmediata</li>
+      <li><i style="background:#fb8c00"></i>II Naranja · Muy urgente</li>
+      <li><i style="background:#fdd835"></i>III Amarillo · Urgente</li>
+      <li><i style="background:#43a047"></i>IV Verde · Leve / sin riesgo vital</li>
+      <li><i style="background:#1e88e5"></i>V Azul · No urgente</li>
+      <li><i style="background:#b0bec5"></i>? Sin clasificar</li>
+    </ul>
+  </div>
+</aside>
+
+<main>
+  <section id="v-sim" class="vista">
+    <div class="controles">
+      <label>Catástrofe
+        <select id="escenario">
+          <option value="accidente">Accidente con múltiples víctimas</option>
+          <option value="sismo">Sismo de gran magnitud</option>
+          <option value="bus">Accidente de bus</option>
+          <option value="incendio">Incendio / explosión industrial</option>
+          <option value="intox">Intoxicación / brote masivo</option>
+          <option value="normal">Día normal (sin catástrofe)</option>
+        </select></label>
+      <div class="campo"><span>Médicos</span><div class="step"><button type="button" data-d="-1" data-t="medicos">−</button><input id="medicos" type="number" min="1" max="7" value="4"><button type="button" data-d="1" data-t="medicos">+</button></div></div>
+      <div class="campo"><span>Enfermeras de triaje</span><div class="step"><button type="button" data-d="-1" data-t="enfermeras">−</button><input id="enfermeras" type="number" min="1" max="4" value="2"><button type="button" data-d="1" data-t="enfermeras">+</button></div></div>
+      <div class="campo"><span>Camas</span><div class="step"><button type="button" data-d="-1" data-t="camas">−</button><input id="camas" type="number" min="4" max="16" value="10"><button type="button" data-d="1" data-t="camas">+</button></div></div>
+      <label class="chk"><input id="plan" type="checkbox" checked>Plan de desastre</label>
+      <label class="chk"><input id="derivar" type="checkbox" checked>Derivar leves si hay desborde</label>
+      <label class="chk"><input id="apropiativa" type="checkbox" checked>Atención apropiativa</label>
+      <label class="chk"><input id="realismo" type="checkbox" checked>🔬 Realismo avanzado</label>
+      <label class="chk"><input id="manual" type="checkbox">🎮 Modo comandante</label>
+      <label>Semilla <input id="semilla" type="number" min="1" value="42"></label>
+    </div>
+    <div class="controles victimas"><b class="tit">Víctimas por nivel de triage · total <span id="vVic">0</span></b>
+      <div class="campo"><span><i class="dot" style="background:#e53935"></i>I Inmediata</span><div class="step"><button type="button" data-d="-1" data-t="vic1">−</button><input id="vic1" type="number" min="0" max="80" value="0"><button type="button" data-d="1" data-t="vic1">+</button></div></div>
+      <div class="campo"><span><i class="dot" style="background:#fb8c00"></i>II Muy urgente</span><div class="step"><button type="button" data-d="-1" data-t="vic2">−</button><input id="vic2" type="number" min="0" max="80" value="0"><button type="button" data-d="1" data-t="vic2">+</button></div></div>
+      <div class="campo"><span><i class="dot" style="background:#fdd835"></i>III Urgente</span><div class="step"><button type="button" data-d="-1" data-t="vic3">−</button><input id="vic3" type="number" min="0" max="80" value="0"><button type="button" data-d="1" data-t="vic3">+</button></div></div>
+      <div class="campo"><span><i class="dot" style="background:#43a047"></i>IV Leve</span><div class="step"><button type="button" data-d="-1" data-t="vic4">−</button><input id="vic4" type="number" min="0" max="80" value="0"><button type="button" data-d="1" data-t="vic4">+</button></div></div>
+      <div class="campo"><span><i class="dot" style="background:#1e88e5"></i>V No urgente</span><div class="step"><button type="button" data-d="-1" data-t="vic5">−</button><input id="vic5" type="number" min="0" max="80" value="0"><button type="button" data-d="1" data-t="vic5">+</button></div></div>
+    </div>
+    <p id="descEsc" class="desc"></p>
+    <p id="aviso" class="aviso" hidden>Los controles se bloquean mientras corre la simulación: pulsa <b>↺ Reiniciar</b> para cambiarlos.</p>
+    <div class="ctrl">
+      <button id="btnIniciar" class="prim">▶ Iniciar</button>
+      <button id="btnReiniciar" class="sec">↺ Reiniciar</button>
+      <button id="btnSaltar" class="sec">⏭ Saltar al final</button>
+      <button id="btnParcial" class="sec">Ver resultados ahora</button>
+      <div id="vel" class="seg"><span>Velocidad</span>
+        <button data-v="2">Lenta</button><button data-v="6" class="act">Normal</button><button data-v="20">Rápida</button><button data-v="60">Muy rápida</button><button data-v="200">Máx</button></div>
+    </div>
+    <div id="mando" class="mando" hidden>
+      <b>🎮 Centro de mando</b>
+      <span class="sub">Tú decides cuándo reaccionar. Cada minuto de demora cuesta vidas.</span>
+      <button class="ord" data-o="plan">🚨 Activar plan de desastre</button>
+      <button class="ord" data-o="enfermeras">👩‍⚕️ Convocar enfermeras</button>
+      <button class="ord" data-o="medicos">🩺 Convocar médicos</button>
+      <button class="ord" data-o="camas">🛏 Abrir camas extra</button>
+      <span class="cupo">Prioridad manual: <b id="cupo">3</b>/3 <small>(clic en un paciente que espere)</small></span>
+    </div>
+    <div class="hud">
+      <div><b id="hCola">0</b><span>cola triaje</span></div>
+      <div><b id="hMed">0</b><span>esperan médico</span></div>
+      <div><b id="hCons">0</b><span>médicos ocupados</span></div>
+      <div><b id="hCam">0</b><span>camas ocupadas</span></div>
+      <div><b id="hAltas">0</b><span>altas</span></div>
+      <div class="mal"><b id="hMuertos">0</b><span>fallecidos</span></div>
+      <div><b id="hAband">0</b><span>abandonos</span></div>
+      <div><b id="hPers">-</b><span>personal activo</span></div>
+      <div class="pts"><b id="hPts">100</b><span>puntaje</span></div>
+    </div>
+    <div class="prog"><i id="progreso"></i></div>
+    <div id="fin" class="finbanner" hidden><span id="finTxt">Simulación terminada.</span>
+      <button id="btnVerRes" class="prim">📊 Ver resultados</button><button id="btnVerOpt" class="sec">⚙ Optimizar recursos</button><button id="btnVerRec" class="sec">💡 Recomendaciones</button></div>
+    <p class="pista-lienzo">↔ Desliza para recorrer todo el hospital.</p>
+    <div class="lienzo"><canvas id="hospital"></canvas></div>
+    <div class="log"><h3>Bitácora de eventos</h3><ul id="bitacora"></ul></div>
+  </section>
+
+  <section id="v-res" class="vista" hidden></section>
+  <section id="v-opt" class="vista" hidden></section>
+  <section id="v-rec" class="vista" hidden></section>
+</main>
+
+<script src="js/motor/sim.js"></script>
+<script src="js/vista/render.js"></script>
+<script src="js/analisis/recomendaciones.js"></script>
+<script src="js/analisis/optimizador.js"></script>
+<script src="js/ui/panelOpt.js"></script>
+<script src="js/ui/resultados.js"></script>
+<script src="js/ui/panelRecom.js"></script>
+<script src="js/ui/app.js"></script>
+</body>
+</html>
