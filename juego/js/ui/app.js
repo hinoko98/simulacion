@@ -6,6 +6,8 @@
   const canvas = $('hospital'), ctx = canvas.getContext('2d');
 
   let sim = null, corriendo = false, velocidad = 6, acc = 0, ultimo = performance.now();
+  // guardada: false = la simulación actual no está en el historial; id = guardada como parcial (se actualizará);
+  // true = guardada ya terminada (no se vuelve a guardar)
   let runs = [], selId = null, guardada = false, vista = 'sim';
   let extraCfg = null;   // refuerzos/llamada de una respuesta optimizada cargada con "Verla animada"; se borra al tocar los controles
   const CLAVE = 'urg_runs_v1';
@@ -54,11 +56,24 @@
 
   /* ---- historial ---- */
   function guardarCorrida() {
-    if (guardada) return; guardada = true;
-    const res = sim.resumen();
-    const c = { id: Date.now(), cfg: Object.assign({}, sim.cfg), res, parcial: !sim.terminado };
-    runs.push(c); if (runs.length > 12) runs.shift();
-    selId = c.id; persistir(); badge();
+    // Una simulación = una sola entrada del historial: si ya se guardó (p. ej. con "Ver resultados ahora"),
+    // se actualiza esa misma entrada en lugar de crear otra.
+    if (guardada === true) return;
+    if (sim.t === 0) return;                                   // aún no ha empezado: no hay nada que guardar
+    const res = sim.resumen(), parcial = !sim.terminado;
+    const previa = guardada ? runs.find(r => r.id === guardada) : null;
+    if (previa) {
+      previa.res = res; previa.parcial = parcial;
+      delete previa.opt;                                       // la optimización era de los datos anteriores
+      runs = runs.filter(r => r.deOpt !== previa.id);
+      selId = previa.id;
+    } else {
+      const c = { id: Date.now(), cfg: Object.assign({}, sim.cfg), res, parcial };
+      runs.push(c); if (runs.length > 12) runs.shift();
+      selId = c.id;
+    }
+    guardada = parcial ? selId : true;                         // parcial: recuerda su id para actualizarla luego
+    persistir(); badge();
   }
   function persistir() { try { localStorage.setItem(CLAVE, JSON.stringify(runs)); } catch (e) { /* sin almacenamiento */ } }
   function badge() { $('nRuns').textContent = runs.length; $('nRuns').hidden = !runs.length; }
@@ -78,8 +93,9 @@
       }
       persistir(); badge();
     },
-    repintar() { if (vista === 'opt') irA('opt'); },
-    seleccionar(id) { selId = id; },
+    alCambiar() { if (vista === 'res') pintarRes(); },
+    /* Al terminar una optimización se abren las recomendaciones de esa corrida. */
+    alTerminar(id) { selId = id; persistir(); irA('rec'); },
     /* Repite la misma catástrofe (escenario, víctimas, semilla, políticas) con la respuesta optimizada (cfg completa). */
     aplicar(corrida, cfg) {
       const c = cfg;
@@ -94,21 +110,33 @@
     },
   };
   function irA(v) {
+    if (v === 'opt') v = 'res';   // la optimización vive en el historial de Resultados
     vista = v;
     document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('act', b.dataset.v === v));
     document.querySelectorAll('.vista').forEach(s => { s.hidden = s.id !== 'v-' + v; });
-    if (v === 'opt') UrgPanelOpt.render($('v-opt'), runs, seleccion(), apiOpt);
     if (v === 'res') pintarRes();
-    if (v === 'rec') UrgPanelRecom.render($('v-rec'), runs, seleccion());
+    if (v === 'rec') {
+      UrgPanelRecom.render($('v-rec'), runs, seleccion());
+      $('v-rec').querySelectorAll('[data-animar]').forEach(b => b.onclick = () => {
+        const run = runs.find(r => r.id === +b.dataset.animar), o = run && UrgPanelOpt.optV2(run);
+        if (o) apiOpt.aplicar(run, UrgOptimizador.cfgOptimizada(run.cfg, o));
+      });
+    }
   }
   function pintarRes() {
     UrgResultados.render($('v-res'), runs, seleccion());
     $('v-res').querySelectorAll('.hist tbody tr').forEach(tr => tr.onclick = () => { selId = +tr.dataset.id; pintarRes(); });
+    $('v-res').querySelectorAll('.btnOpt').forEach(b => b.onclick = (ev) => {
+      ev.stopPropagation();
+      const run = runs.find(r => r.id === +b.dataset.opt);
+      if (run) { selId = run.id; UrgPanelOpt.lanzar(run, apiOpt); }
+    });
+    $('v-res').querySelectorAll('.btnRec').forEach(b => b.onclick = (ev) => { ev.stopPropagation(); selId = +b.dataset.rec; irA('rec'); });
     const b = $('v-res').querySelector('#btnBorrarHist');
     if (b) b.onclick = () => { runs = []; selId = null; persistir(); badge(); pintarRes(); };
   }
   document.querySelectorAll('.nav button').forEach(b => b.onclick = () => irA(b.dataset.v));
-  /* Botones de "paso siguiente" que pintan los paneles: <button data-ir="opt"> */
+  /* Botones de "paso siguiente" que pintan los paneles: <button data-ir="res"> */
   document.querySelector('main').addEventListener('click', (ev) => { const b = ev.target.closest('[data-ir]'); if (b) irA(b.dataset.ir); });
 
   /* ---- HUD ---- */
@@ -182,7 +210,7 @@
   };
   $('btnReiniciar').onclick = reiniciar;
   $('btnSaltar').onclick = () => { bloquear(true); let n = 0; while (!sim.terminado && n++ < 200000) sim.step(); terminar(); irA('res'); };
-  $('btnParcial').onclick = () => { corriendo = false; $('btnIniciar').textContent = '▶ Continuar'; guardada = false; guardarCorrida(); guardada = !!sim.terminado; irA('res'); };
+  $('btnParcial').onclick = () => { corriendo = false; $('btnIniciar').textContent = '▶ Continuar'; guardarCorrida(); irA('res'); };
   $('btnVerRes').onclick = () => irA('res');
   $('btnVerOpt').onclick = () => irA('opt');
   $('btnVerRec').onclick = () => irA('rec');

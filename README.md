@@ -47,21 +47,24 @@ juego/
 └── js/
     ├── motor/sim.js            # MOTOR: modelo de eventos (triaje, médicos, camas, plan, derivación)
     ├── vista/render.js         # VISTA: dibuja el hospital, pacientes, médicos, enfermeras, ambulancias
+    ├── analisis/optimizador.js      # ANÁLISIS: optimización de refuerzos guiada por el diagnóstico
     ├── analisis/recomendaciones.js  # ANÁLISIS: reglas que generan recomendaciones según triaje
     └── ui/
         ├── app.js              # controles, pestañas, bucle y guardado del historial
-        ├── resultados.js       # pestaña Resultados
+        ├── resultados.js       # pestaña Resultados (historial con ⚙ Optimizar)
+        ├── panelOpt.js         # lanza la optimización (una a la vez) y sus tablas
+        ├── graficas.js         # gráficas SVG de Recomendaciones
         └── panelRecom.js       # pestaña Recomendaciones
 ```
 
-Pestañas, en el orden del flujo: **Simulación** (el hospital en vivo) → **Resultados** (KPIs, tabla
-por nivel de triaje con ayudas al pasar el cursor, línea de tiempo, historial comparable) →
-**Optimización** (eliges qué simulación optimizar; a partir de sus resultados —muertes antes de
-clasificar, muertes esperando médico, colas, utilización— decide paso a paso a quién convocar de refuerzo:
-médicos, enfermeras de triaje o camas de sobrecarga, con refuerzos limitados que llegan con demora; muestra
-cada paso con su porqué y cuánto cuesta convocar tarde) → **Recomendaciones** (la primera es el plan de
-respuesta optimizado; las demás reglas por triaje se ajustan a él). El resultado de la optimización se guarda
-junto a la corrida. Con la misma semilla los pacientes son idénticos entre
+Pestañas, en el orden del flujo: **Simulación** (el hospital en vivo) → **Resultados** (KPIs; **historial de
+corridas** con un botón **⚙ Optimizar** por catástrofe; utilización de recursos con el diagnóstico de cuellos de
+botella; tabla por nivel de triaje con ayudas al pasar el cursor; línea de tiempo) → **Recomendaciones**.
+La optimización parte de los resultados de la corrida elegida —muertes antes de clasificar, muertes esperando
+médico, colas, utilización— y decide paso a paso a quién convocar de refuerzo (médicos, enfermeras de triaje o
+camas de sobrecarga, limitados y con demora). Solo se optimiza una corrida a la vez; al terminar se abren sus
+recomendaciones, que solo aparecen tras optimizar e incluyen gráficas (fallecidos, cumplimiento y costo por
+paso; efecto de convocar tarde; antes y después). Con la misma semilla los pacientes son idénticos entre
 corridas, así que las diferencias se deben solo a tus decisiones.
 
 Pruebas: `node prueba.js` (motor), `node prueba_opt.js` (refuerzos y optimizador) y `node prueba_recom.js` (unión optimización → recomendaciones).

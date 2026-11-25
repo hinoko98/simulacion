@@ -12,7 +12,6 @@
   <nav class="nav">
     <button data-v="sim" class="act"><i>🏥</i>Simulación</button>
     <button data-v="res"><i>📊</i>Resultados<span id="nRuns" class="badge" hidden>0</span></button>
-    <button data-v="opt"><i>⚙</i>Optimización</button>
     <button data-v="rec"><i>💡</i>Recomendaciones</button>
   </nav>
   <div class="pie">
@@ -89,14 +88,13 @@
     </div>
     <div class="prog"><i id="progreso"></i></div>
     <div id="fin" class="finbanner" hidden><span id="finTxt">Simulación terminada.</span>
-      <button id="btnVerRes" class="prim">📊 Ver resultados</button><button id="btnVerOpt" class="sec">⚙ Optimizar recursos</button><button id="btnVerRec" class="sec">💡 Recomendaciones</button></div>
+      <button id="btnVerRes" class="prim">📊 Ver resultados</button><button id="btnVerOpt" class="sec">⚙ Optimizar (en el historial)</button><button id="btnVerRec" class="sec">💡 Recomendaciones</button></div>
     <p class="pista-lienzo">↔ Desliza para recorrer todo el hospital.</p>
     <div class="lienzo"><canvas id="hospital"></canvas></div>
     <div class="log"><h3>Bitácora de eventos</h3><ul id="bitacora"></ul></div>
   </section>
 
   <section id="v-res" class="vista" hidden></section>
-  <section id="v-opt" class="vista" hidden></section>
   <section id="v-rec" class="vista" hidden></section>
 </main>
 
@@ -104,6 +102,7 @@
 <script src="js/vista/render.js"></script>
 <script src="js/analisis/recomendaciones.js"></script>
 <script src="js/analisis/optimizador.js"></script>
+<script src="js/ui/graficas.js"></script>
 <script src="js/ui/panelOpt.js"></script>
 <script src="js/ui/resultados.js"></script>
 <script src="js/ui/panelRecom.js"></script>

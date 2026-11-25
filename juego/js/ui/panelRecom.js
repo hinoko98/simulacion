@@ -6,11 +6,23 @@
   const f0 = (x) => Math.round(x);
   const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   const TXT = { ok: 'Cumple', aviso: 'En riesgo', critico: 'Crítico' };
+  const G = root.UrgGraficas;
 
   function render(cont, runs, sel) {
     if (!sel) {
       cont.innerHTML = `<div class="vacio"><h2>Sin datos para recomendar</h2>
         <p>Termina una simulación (o pulsa <b>Ver resultados</b> a mitad de la corrida) y aquí aparecerán las recomendaciones.</p></div>`;
+      return;
+    }
+    // Una corrida generada al optimizar muestra las recomendaciones de la corrida original.
+    if (sel.deOpt) sel = runs.find(x => x.id === sel.deOpt) || sel;
+    const P = root.UrgPanelOpt, evento = ESCENARIOS[sel.cfg.escenario].evento;
+    if (evento && !P.optV2(sel)) {
+      cont.innerHTML = `<header class="vh"><h1>Recomendaciones</h1><p>${esc(root.UrgResultados.etiquetaCorrida(sel))}</p></header>
+        <div class="vacio"><h2>Primero optimiza esta corrida</h2>
+        <p>Las recomendaciones salen de la optimización: a partir de los resultados de la simulación se decide a quién convocar de refuerzo y cuándo.<br>
+        Ve al <b>historial de corridas</b> en Resultados y pulsa <b>⚙ Optimizar</b> en esta corrida.</p>
+        <button class="prim" data-ir="res">📊 Ir al historial de Resultados</button></div>`;
       return;
     }
     const a = root.UrgRecomendaciones.generar(sel, runs), r = sel.res;
@@ -32,12 +44,19 @@
         </tbody></table></div>
         ${o.costoDemora >= 0.1 ? `<p><b>Convocar a los 30 min en vez de con la alerta cuesta ${o.costoDemora.toFixed(1)} fallecidos graves más.</b></p>` : ''}
         <p class="nota">Meta: ${o.meta} % de pacientes I-III a tiempo y cero fallecidos I-III · promedio de ${o.replicas} réplicas con los mismos pacientes · cada refuerzo se eligió según el cuello de botella que mostraban los resultados.</p>
-        <div class="pasos-sig"><button class="sec" data-ir="opt">⚙ Ver los pasos de la optimización</button></div></section>`);
-      h.push(root.UrgPanelOpt.antesDespues(sel));
-    } else if (ESCENARIOS[sel.cfg.escenario].evento) {
-      h.push(`<section class="card aviso"><h2>Aún no has optimizado esta catástrofe</h2>
-        <p>Las recomendaciones de recursos serán generales hasta que lo hagas: la optimización dice a quién convocar de refuerzo, y cuándo, en esta misma catástrofe.</p>
-        <div class="pasos-sig"><button class="prim" data-ir="opt">⚙ Optimizar esta simulación →</button></div></section>`);
+        <div class="pasos-sig"><button class="prim" data-animar="${sel.id}">▶ Verla animada en Simulación</button><button class="sec" data-ir="res">📊 Volver al historial</button></div></section>`);
+      h.push(graficasOpt(o));
+      h.push(`<section class="card"><h2>Cómo se llegó: cada refuerzo sale del diagnóstico de los resultados</h2>${P.pasosHtml(o)}</section>`);
+      h.push(`<section class="card"><h2>Efecto de convocar tarde</h2>
+        <p class="nota">La misma respuesta (${esc(P.refTxt(o.final.ref))}) convocada en distintos momentos tras la alerta.</p>
+        <div class="graf-grid"><div>${G.barras(o.demora.map(d => ({ etq: d.llamada === 0 ? 'Con la alerta' : `A los ${d.llamada} min`, v: d.muertosG, etiqueta: true,
+          tip: `Convocar ${d.llamada === 0 ? 'con la alerta' : 'a los ' + d.llamada + ' min'}: ${d.muertosG.toFixed(1)} fallecidos I-III, ${Math.round(d.cumpleG)} % a tiempo` })),
+          { titulo: 'Fallecidos I-III según el momento de la convocatoria', alto: 200 })}<p class="graf-t">Fallecidos I-III según cuándo se convoca</p></div>
+        <div>${P.demoraHtml(o)}</div></div></section>`);
+      const A = o.antes, D = o.despues;
+      h.push(P.antesDespues(sel, A && D ? `<div class="graf-una">${G.agrupadas(['Fallecidos', 'Fallecidos I-III', 'Abandonos', 'Derivados'],
+        [{ nombre: 'Antes: lo que simulaste', valores: [A.muertos, A.muertosG, A.abandonos, A.derivados] },
+         { nombre: 'Después: respuesta optimizada', valores: [D.muertos, D.muertosG, D.abandonos, D.derivados] }], { titulo: 'Antes y después', alto: 220 })}</div>` : ''));
     }
 
     const d = a.desborde;
@@ -68,12 +87,32 @@
       <div class="meta">${x.niveles.map(n => `<span class="chip" style="background:${COLOR[n]}">N${n}</span>`).join('')}${x.impacto ? `<small>Impacto esperado: ${esc(x.impacto)}</small>` : ''}</div></li>`).join('') + '</ol></section>');
 
     if (o && o.refuerzos.length) {
-      h.push(`<section class="card"><h2>Cómo probarlas</h2><p>Abre <b>Optimización</b> y pulsa <b>▶ Verla animada en Simulación</b>: se repite la misma catástrofe (mismos pacientes, semilla ${sel.cfg.semilla})
+      h.push(`<section class="card"><h2>Cómo probarlas</h2><p>Pulsa <b>▶ Verla animada en Simulación</b>: se repite la misma catástrofe (mismos pacientes, semilla ${sel.cfg.semilla})
         con la respuesta ${o.cumpleMeta ? 'óptima' : 'más cercana a la meta'}. Cualquier diferencia en los resultados se debe solo a los refuerzos, y la nueva corrida queda en el historial para compararla.</p>
-        <div class="pasos-sig"><button class="sec" data-ir="opt">⚙ Ir a Optimización</button></div></section>`);
+        <div class="pasos-sig"><button class="prim" data-animar="${sel.id}">▶ Verla animada en Simulación</button><button class="sec" data-ir="res">📊 Ir al historial</button></div></section>`);
     } else h.push(`<section class="card"><h2>Cómo probarlas</h2><p>Vuelve a <b>Simulación</b>, elige el mismo escenario y <b>la misma semilla (${sel.cfg.semilla})</b>: los pacientes serán exactamente los mismos, así que
       cualquier diferencia se debe a tus cambios. Prueba, en este orden: activar el plan, activar la atención apropiativa, subir enfermeras de triaje y subir médicos. Cada corrida queda guardada para compararla.</p></section>`);
     cont.innerHTML = h.join('');
+  }
+
+  /** Gráficas de la búsqueda: cómo cambian fallecidos y cumplimiento con cada paso. */
+  function graficasOpt(o) {
+    const CORTO = { medicos: 'méd', enfermeras: 'enf', camas: 'camas' };
+    const pasos = o.pasos.map(p => ({ p, etq: p.n === 0 ? 'Inicio' : `${p.cambio > 0 ? '+' : '−'}${Math.abs(p.cambio)} ${CORTO[p.recurso]}` }));
+    const ult = pasos.length - 1;
+    return `<section class="card"><h2>Gráficas de la optimización</h2>
+      <p class="nota">Cada punto es un paso de la búsqueda (media de ${o.replicas} réplicas). Pasa el cursor por una barra o un punto para ver el detalle.</p>
+      <div class="graf-grid ancha">
+        <div>${G.barras(pasos.map(({ p, etq }, i) => ({ etq, v: p.muertosG, etiqueta: i === 0 || i === ult,
+          tip: `Paso ${p.n} · ${p.decision}: ${p.muertosG.toFixed(1)} fallecidos I-III` })), { titulo: 'Fallecidos I-III por paso' })}
+          <p class="graf-t">Fallecidos I-III en cada paso</p></div>
+        <div>${G.linea(pasos.map(({ p, etq }, i) => ({ etq, v: p.cumpleG, etiqueta: i === 0 || i === ult,
+          tip: `Paso ${p.n} · ${p.decision}: ${Math.round(p.cumpleG)} % de I-III a tiempo` })), { titulo: '% de I-III atendido a tiempo por paso', unidad: ' %', max: 100, ref: { v: o.meta, txt: `meta ${o.meta} %` } })}
+          <p class="graf-t">% de pacientes I-III atendidos a tiempo</p></div>
+        <div>${G.barras(pasos.map(({ p, etq }, i) => ({ etq, v: p.costo / 1e6, etiqueta: i === ult, tip: `Paso ${p.n} · ${p.decision}: $${Math.round(p.costo).toLocaleString('es-CO')}` })),
+          { titulo: 'Costo de los refuerzos por paso', unidad: ' M', decimales: 2 })}
+          <p class="graf-t">Costo acumulado de los refuerzos (millones de COP)</p></div>
+      </div></section>`;
   }
 
   root.UrgPanelRecom = { render };

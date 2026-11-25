@@ -223,12 +223,12 @@
   }
 
   class Pool {
-    constructor(spots, zona) { this.s = spots; this.u = new Array(spots.length).fill(false); this.z = zona; }
+    constructor(spots, zona, rnd) { this.s = spots; this.u = new Array(spots.length).fill(false); this.z = zona; this.rnd = rnd; }
     tomar() {
       const i = this.u.indexOf(false);
       if (i >= 0) { this.u[i] = true; return { i, x: this.s[i].x, y: this.s[i].y }; }
       const z = this.z; // desbordado: de pie en cualquier parte de la zona
-      return { i: -1, x: z.x + 15 + Math.random() * (z.w - 30), y: z.y + 25 + Math.random() * (z.h - 40) };
+      return { i: -1, x: z.x + 15 + this.rnd() * (z.w - 30), y: z.y + 25 + this.rnd() * (z.h - 40) };
     }
   }
 
@@ -251,10 +251,13 @@
       this.planActivo = false; this.alertaT = null; this.ambSpawned = 0;
       this.log = []; this.pac = []; this.colaT = []; this.colaD = []; this.colaC = [];
       this.ambs = []; this.nextId = 1;
-      this.poolEspera = new Pool(GEO.espera, ZONAS.espera);
-      this.poolMed = new Pool(GEO.medEspera, ZONAS.medEspera);
-      this.poolPas = new Pool(GEO.pasillo, ZONAS.pasillo);
-      this.poolRec = new Pool(GEO.rec, ZONAS.rec);
+      // posiciones en pantalla con su propia semilla: el recorrido a pie influye en los tiempos, así que no puede usar Math.random
+      this.rngPos = mulberry32((c.semilla * 104729 + 17) >>> 0);
+      const rp = this.rngPos;
+      this.poolEspera = new Pool(GEO.espera, ZONAS.espera, rp);
+      this.poolMed = new Pool(GEO.medEspera, ZONAS.medEspera, rp);
+      this.poolPas = new Pool(GEO.pasillo, ZONAS.pasillo, rp);
+      this.poolRec = new Pool(GEO.rec, ZONAS.rec, rp);
 
       const reps = (n, base, lim) => Math.max(0, Math.min(n, lim - base));
       // refuerzos que se convocan con el plan (decisión optimizable); por defecto 3 médicos, 2 enfermeras, 6 camas
@@ -436,7 +439,7 @@
       this.liberarSpot(p);
       const r = pool.tomar();
       p.pool = pool; p.si = r.i;
-      p.tx = r.x + (Math.random() - 0.5) * 6; p.ty = r.y + (Math.random() - 0.5) * 6;
+      p.tx = r.x + (this.rngPos() - 0.5) * 6; p.ty = r.y + (this.rngPos() - 0.5) * 6;
     }
     liberarSpot(p) { if (p.pool && p.si >= 0) p.pool.u[p.si] = false; p.pool = null; p.si = -1; }
 
@@ -508,7 +511,7 @@
 
     salir(p) {
       this.liberarSpot(p);
-      p.estado = 'saliendo'; p.tx = 1215; p.ty = 535 + Math.random() * 50;
+      p.estado = 'saliendo'; p.tx = 1215; p.ty = 535 + this.rngPos() * 50;
       this.st.altas++; this.st.estancias.push(this.t - p.tArr);
     }
 

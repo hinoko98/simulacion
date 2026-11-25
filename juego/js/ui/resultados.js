@@ -53,20 +53,13 @@
       kpi(f0(r.estancia) + ' min', 'estancia media') +
       kpi(r.enSistema, 'aún en el hospital') + '</section>');
 
-    if (ESCENARIOS[c.escenario].evento && !sel.deOpt) {
-      const o = sel.opt && sel.opt.version === 2 ? sel.opt : null;
-      const ref = o ? ['medicos', 'enfermeras', 'camas'].filter(k => o.final.ref[k] > 0).map(k => `${o.final.ref[k]} ${root.UrgOptimizador.nombre(k, o.final.ref[k])}`).join(', ') : '';
-      html.push(`<section class="card sig"><div><h2>${o ? 'Esta catástrofe ya está optimizada' : 'Siguiente paso: optimizar la respuesta a esta catástrofe'}</h2>
-        <p class="nota">${o ? `Respuesta ${o.cumpleMeta ? 'óptima' : 'más cercana a la meta'}: convocar ${ref || 'ningún refuerzo'}.`
-          : 'A partir de estos resultados, busca a quién convocar de refuerzo (médicos, enfermeras, camas) con estos mismos pacientes.'}</p></div>
-        <div class="pasos-sig"><button class="prim" data-ir="opt">⚙ ${o ? 'Ver optimización' : 'Optimizar esta simulación'} →</button>
-        ${o ? '<button class="sec" data-ir="rec">💡 Ver recomendaciones →</button>' : ''}</div></section>`);
-    }
+    html.push(historial(runs, sel));
 
     html.push(`<section class="card"><h2>Utilización de recursos</h2><div class="barras">` +
       [['Médicos', r.util.medicos], ['Enfermeras de triaje', r.util.enfermeras], ['Camas', r.util.camas]].map(([n, v]) =>
         `<div class="barra"><span>${n}</span><div class="pista"><i style="width:${Math.min(100, v)}%;background:${v > 90 ? '#e53935' : v > 75 ? '#fb8c00' : '#26a69a'}"></i></div><b>${f0(v)} %</b></div>`).join('') +
-      `</div><p class="nota">Picos: ${r.picoColaT} esperando triaje · ${r.picoColaD} esperando médico · ${r.interrup} consultas interrumpidas por prioridad · ${r.ingresoDirecto} ingresos directos por ambulancia.</p></section>`);
+      `</div><p class="nota">Picos: ${r.picoColaT} esperando triaje · ${r.picoColaD} esperando médico · ${r.interrup} consultas interrumpidas por prioridad · ${r.ingresoDirecto} ingresos directos por ambulancia.</p>` +
+      (ESCENARIOS[c.escenario].evento ? diagnostico(r) : '') + `</section>`);
 
     html.push(`<section class="card"><h2>Desempeño por nivel de triaje</h2>
       <p class="nota">Pasa el cursor (o toca) sobre el nombre de cada columna o nivel para ver qué significa.</p><div class="tabla-wrap con-tips"><table>
@@ -84,15 +77,37 @@
       <div class="leyenda"><span><i style="background:#1565c0"></i>Esperan médico</span><span><i style="background:#26a69a"></i>Esperan triaje</span>
       <span><i style="background:#e53935"></i>Fallecidos (acum.)</span><span><i style="background:#7e57c2"></i>Esperan cama</span></div></section>`);
 
-    html.push(`<section class="card"><h2>Historial de corridas</h2><p class="nota">Compara escenarios y configuraciones. Pulsa una fila para verla en detalle.</p>
-      <div class="tabla-wrap"><table class="hist"><thead><tr><th>#</th><th>Escenario</th><th>Plan</th><th>Apropiativa</th><th>Méd/Enf/Camas</th><th>Semilla</th><th>Llegados</th><th>Fallecidos</th><th>Abandonos</th><th>Cumple</th></tr></thead><tbody>` +
-      runs.map((h, i) => `<tr data-id="${h.id}" class="${h.id === sel.id ? 'sel' : ''}"><td>${i + 1}</td><td>${esc(ESCENARIOS[h.cfg.escenario].nombre)}${h.parcial ? ' (parcial)' : ''}${h.deOpt ? ' <b class="bien">· optimizada</b>' : ''}</td>
-        <td>${h.cfg.plan ? 'Sí' : 'No'}</td><td>${h.cfg.apropiativa ? 'Sí' : 'No'}</td><td>${h.cfg.medicos}/${h.cfg.enfermeras}/${h.cfg.camas}</td><td>${h.cfg.semilla}</td>
-        <td>${h.res.llegados}</td><td class="${h.res.muertos ? 'mal' : 'bien'}">${h.res.muertos}</td><td>${h.res.abandonos}</td><td>${f0(h.res.cumple)} %</td></tr>`).join('') +
-      `</tbody></table></div><button id="btnBorrarHist" class="sec">Borrar historial</button></section>`);
-
     cont.innerHTML = html.join('');
     grafica(cont.querySelector('#grafLinea'), r);
+  }
+
+  /** Historial con el botón de optimización por corrida (solo una optimización a la vez). */
+  function historial(runs, sel) {
+    const P = root.UrgPanelOpt, ocupado = P.buscando();
+    const fila = (h, i) => {
+      const o = P.optV2(h), padre = h.deOpt ? runs.findIndex(x => x.id === h.deOpt) : -1;
+      let acc;
+      if (h.deOpt) acc = `<span class="nota">respuesta optimizada${padre >= 0 ? ' de la #' + (padre + 1) : ''}</span>`;
+      else if (!P.optimizable(h)) acc = '<span class="nota">no aplica (día normal)</span>';
+      else if (ocupado === h.id) acc = '<button class="sec" disabled>⏳ Optimizando…</button>';
+      else acc = `<button class="${o ? 'sec' : 'prim'} btnOpt" data-opt="${h.id}" ${ocupado !== null ? 'disabled title="Ya hay una optimización en curso"' : ''}>${o ? '↻ Reoptimizar' : '⚙ Optimizar'}</button>` +
+        (o ? ` <button class="sec btnRec" data-rec="${h.id}">💡 Recomendaciones</button>` : '');
+      return `<tr data-id="${h.id}" class="${h.id === sel.id ? 'sel' : ''}"><td>${i + 1}</td><td>${esc(ESCENARIOS[h.cfg.escenario].nombre)}${h.parcial ? ' (parcial)' : ''}${h.deOpt ? ' <b class="bien">· optimizada</b>' : ''}</td>
+        <td>${h.cfg.plan ? 'Sí' : 'No'}</td><td>${h.cfg.apropiativa ? 'Sí' : 'No'}</td><td>${h.cfg.medicos}/${h.cfg.enfermeras}/${h.cfg.camas}</td><td>${h.cfg.semilla}</td>
+        <td>${h.res.llegados}</td><td class="${h.res.muertos ? 'mal' : 'bien'}">${h.res.muertos}</td><td>${h.res.abandonos}</td><td>${f0(h.res.cumple)} %</td><td class="acc">${acc}</td></tr>`;
+    };
+    return `<section class="card"><h2>Historial de corridas</h2>
+      <p class="nota">Pulsa una fila para ver sus resultados. <b>⚙ Optimizar</b> parte de los resultados de esa corrida y busca a quién convocar de refuerzo; solo se optimiza una a la vez y al terminar se abren sus recomendaciones.</p>
+      ${P.controlesHtml()}
+      <div class="tabla-wrap"><table class="hist"><thead><tr><th>#</th><th>Escenario</th><th>Plan</th><th>Apropiativa</th><th>Méd/Enf/Camas</th><th>Semilla</th><th>Llegados</th><th>Fallecidos</th><th>Abandonos</th><th>Cumple</th><th>Optimización</th></tr></thead><tbody>` +
+      runs.map(fila).join('') + `</tbody></table></div><button id="btnBorrarHist" class="sec" ${ocupado !== null ? 'disabled' : ''}>Borrar historial</button></section>`;
+  }
+
+  /** Lo que los resultados dicen de cada recurso: es el punto de partida de la optimización. */
+  function diagnostico(r) {
+    const O = root.UrgOptimizador, d = O.diagnosticar(O.metricas(r), 70);
+    const N = { medicos: 'Médicos', enfermeras: 'Enfermeras de triaje', camas: 'Camas' };
+    return `<ul class="diag">${O.RECURSOS.map(k => `<li class="${d[k] ? 'mal' : 'bien'}"><b>${N[k]}:</b> ${d[k] ? esc(d[k]) + ' → <b>candidato a refuerzo</b>' : 'sin señales de saturación'}</li>`).join('')}</ul>`;
   }
 
   function grafica(cv, r) {
